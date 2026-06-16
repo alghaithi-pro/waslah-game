@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/puzzle.dart';
 import '../theme/app_colors.dart';
 import '../widgets/letter_grid.dart';
-import '../widgets/word_chip.dart';
 import 'win_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -132,7 +131,7 @@ class _GameScreenState extends State<GameScreen>
                   ),
                   // Grid
                   Expanded(
-                    flex: 5,
+                    flex: 1,
                     child: Center(
                       child: Container(
                         margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -156,32 +155,7 @@ class _GameScreenState extends State<GameScreen>
                       ),
                     ),
                   ),
-                  // Word chips
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Directionality(
-                          textDirection: TextDirection.rtl,
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            children: puzzle.words
-                                .map((e) => WordChip(
-                                      word: e.word,
-                                      found: _foundWords.contains(e.word),
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
