@@ -1,63 +1,56 @@
 import 'package:flutter/material.dart';
-import '../data/puzzles_data.dart';
-import '../theme/app_colors.dart';
+import '../data/puzzles.dart';
+import '../models/puzzle.dart';
+import '../theme/colors.dart';
 import 'game_screen.dart';
 
 class LevelsScreen extends StatelessWidget {
-  final int categoryIndex;
-  const LevelsScreen({super.key, required this.categoryIndex});
+  const LevelsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cat = allCategories[categoryIndex];
-    final color = AppColors.categoryColors[cat.colorIndex % AppColors.categoryColors.length];
-
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [color, Color.lerp(color, Colors.black, 0.4)!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.bgTop, AppColors.bgBottom],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              _TopBar(
-                title: cat.name,
-                emoji: cat.emoji,
+              // Top bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'اختر اللغز',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
               ),
               Expanded(
-                child: Padding(
+                child: ListView(
                   padding: const EdgeInsets.all(16),
-                  child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1,
-                    ),
-                    itemCount: cat.puzzles.length,
-                    itemBuilder: (context, i) {
-                      final puzzle = cat.puzzles[i];
-                      return _LevelCard(
-                        number: i + 1,
-                        topic: puzzle.topic,
-                        color: color,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GameScreen(
-                              puzzle: puzzle,
-                              categoryIndex: categoryIndex,
-                              puzzleIndex: i,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  children: allPacks.map((pack) {
+                    return _PackSection(pack: pack);
+                  }).toList(),
                 ),
               ),
             ],
@@ -68,112 +61,78 @@ class LevelsScreen extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
-  final String title;
-  final String emoji;
-  const _TopBar({required this.title, required this.emoji});
+class _PackSection extends StatelessWidget {
+  final PuzzlePack pack;
+  const _PackSection({required this.pack});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Text(pack.emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Text(
+                pack.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 24)),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
+        ),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1,
           ),
-          const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
-}
-
-class _LevelCard extends StatelessWidget {
-  final int number;
-  final String topic;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _LevelCard({
-    required this.number,
-    required this.topic,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                3,
-                (i) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Icon(
-                    Icons.star,
-                    size: 14,
-                    color: AppColors.accent.withOpacity(0.8),
-                  ),
+          itemCount: pack.puzzles.length,
+          itemBuilder: (ctx, i) {
+            final puzzle = pack.puzzles[i];
+            return GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => GameScreen(puzzle: puzzle),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$number',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                topic,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.4)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.grid_on, color: Colors.white, size: 26),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+            );
+          },
         ),
-      ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 }

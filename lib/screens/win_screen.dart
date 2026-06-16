@@ -1,275 +1,141 @@
 import 'package:flutter/material.dart';
 import '../models/puzzle.dart';
-import '../theme/app_colors.dart';
-import '../data/puzzles_data.dart';
-import 'game_screen.dart';
+import '../theme/colors.dart';
+import 'levels_screen.dart';
 
-class WinScreen extends StatefulWidget {
-  final Puzzle puzzle;
-  final int stars;
-  final int categoryIndex;
-  final int puzzleIndex;
-
-  const WinScreen({
-    super.key,
-    required this.puzzle,
-    required this.stars,
-    required this.categoryIndex,
-    required this.puzzleIndex,
-  });
-
-  @override
-  State<WinScreen> createState() => _WinScreenState();
-}
-
-class _WinScreenState extends State<WinScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-  late Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  bool get _hasNext {
-    final cat = allCategories[widget.categoryIndex];
-    return widget.puzzleIndex < cat.puzzles.length - 1;
-  }
-
-  void _nextPuzzle() {
-    final nextPuzzle = allCategories[widget.categoryIndex]
-        .puzzles[widget.puzzleIndex + 1];
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GameScreen(
-          puzzle: nextPuzzle,
-          categoryIndex: widget.categoryIndex,
-          puzzleIndex: widget.puzzleIndex + 1,
-        ),
-      ),
-    );
-  }
+class WinScreen extends StatelessWidget {
+  final CrosswordPuzzle puzzle;
+  const WinScreen({super.key, required this.puzzle});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.bgTop, AppColors.bgBottom],
           ),
         ),
         child: SafeArea(
-          child: Stack(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ..._buildParticles(MediaQuery.of(context).size),
-              Center(
-                child: FadeTransition(
-                  opacity: _fade,
-                  child: ScaleTransition(
-                    scale: _scale,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 40, horizontal: 28),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Trophy emoji
-                          const Text('🏆', style: TextStyle(fontSize: 72)),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'أحسنت!',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1A237E),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'لغز رقم ${widget.puzzle.number} — ${widget.puzzle.topic}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          // Stars
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(3, (i) {
-                              final lit = i < widget.stars;
-                              return TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0, end: lit ? 1 : 0.3),
-                                duration: Duration(milliseconds: 300 + i * 150),
-                                builder: (_, v, __) => Opacity(
-                                  opacity: v,
-                                  child: Icon(
-                                    Icons.star_rounded,
-                                    size: 56,
-                                    color: lit
-                                        ? AppColors.star
-                                        : Colors.grey[300],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                          const SizedBox(height: 28),
-                          // Words found
-                          Text(
-                            'وجدت ${widget.puzzle.words.length} كلمات',
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          // Buttons
-                          if (_hasNext)
-                            _WinButton(
-                              label: 'اللغز التالي ←',
-                              onTap: _nextPuzzle,
-                              isPrimary: true,
-                            ),
-                          const SizedBox(height: 12),
-                          _WinButton(
-                            label: 'قائمة الألغاز',
-                            onTap: () =>
-                                Navigator.popUntil(context, (r) => r.isFirst || r.settings.name == '/levels'),
-                            isPrimary: !_hasNext,
-                          ),
-                          const SizedBox(height: 8),
-                          _WinButton(
-                            label: 'الصفحة الرئيسية',
-                            onTap: () => Navigator.popUntil(context, (r) => r.isFirst),
-                            isPrimary: false,
-                          ),
-                        ],
-                      ),
-                    ),
+              const Spacer(),
+              // Trophy icon
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.emoji_events, size: 70, color: Color(0xFFFFD700)),
+              ),
+              const SizedBox(height: 28),
+              // Congratulations text
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Text(
+                  'أحسنت!',
+                  style: TextStyle(
+                    fontSize: 38,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF222222),
+                    letterSpacing: 2,
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              Text(
+                'حللت: ${puzzle.title}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              // Buttons
+              _WinButton(
+                label: 'ألغاز أخرى',
+                icon: Icons.grid_view_rounded,
+                onTap: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LevelsScreen()),
+                    (route) => route.isFirst,
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+              _WinButton(
+                label: 'القائمة الرئيسية',
+                icon: Icons.home_outlined,
+                onTap: () {
+                  Navigator.popUntil(context, (route) => route.isFirst);
+                },
+              ),
+              const Spacer(),
             ],
           ),
         ),
       ),
     );
   }
-
-  List<Widget> _buildParticles(Size size) {
-    final colors = [
-      AppColors.accent,
-      Colors.greenAccent,
-      Colors.pinkAccent,
-      Colors.lightBlueAccent,
-    ];
-    return List.generate(20, (i) {
-      final x = (i * 73 % 100) / 100.0;
-      final y = (i * 37 % 100) / 100.0;
-      final s = 8.0 + (i * 17 % 12);
-      return Positioned(
-        left: x * size.width,
-        top: y * size.height,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 600 + i * 80),
-          builder: (_, v, __) => Opacity(
-            opacity: v * 0.6,
-            child: Transform.rotate(
-              angle: i * 0.5,
-              child: Container(
-                width: s,
-                height: s,
-                decoration: BoxDecoration(
-                  color: colors[i % colors.length],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    });
-  }
 }
 
 class _WinButton extends StatelessWidget {
   final String label;
+  final IconData icon;
   final VoidCallback onTap;
-  final bool isPrimary;
-
-  const _WinButton({
-    required this.label,
-    required this.onTap,
-    required this.isPrimary,
-  });
+  const _WinButton({required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity,
-        height: 52,
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        height: 56,
         decoration: BoxDecoration(
-          gradient: isPrimary
-              ? const LinearGradient(
-                  colors: [Color(0xFFFFB300), Color(0xFFFF8F00)],
-                )
-              : null,
-          color: isPrimary ? null : Colors.grey[100],
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: isPrimary
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFFFB300).withOpacity(0.4),
-                    blurRadius: 12,
-                  )
-                ]
-              : null,
+          color: AppColors.btnMain,
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: isPrimary ? const Color(0xFF1A237E) : Colors.grey[600],
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                color: AppColors.btnIcon,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+              ),
+              child: Icon(icon, color: AppColors.iconClr, size: 24),
             ),
-          ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

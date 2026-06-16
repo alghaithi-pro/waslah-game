@@ -1,256 +1,261 @@
 import 'package:flutter/material.dart';
 import '../models/puzzle.dart';
-import '../theme/app_colors.dart';
-import '../widgets/letter_grid.dart';
+import '../theme/colors.dart';
+import '../widgets/crossword_grid.dart';
+import '../widgets/arabic_keyboard.dart';
 import 'win_screen.dart';
 
 class GameScreen extends StatefulWidget {
-  final Puzzle puzzle;
-  final int categoryIndex;
-  final int puzzleIndex;
-
-  const GameScreen({
-    super.key,
-    required this.puzzle,
-    required this.categoryIndex,
-    required this.puzzleIndex,
-  });
+  final CrosswordPuzzle puzzle;
+  const GameScreen({super.key, required this.puzzle});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
-  final Set<String> _foundWords = {};
-  late AnimationController _flashCtrl;
-  late Animation<Color?> _flashColor;
-  DateTime? _startTime;
-  int _wrongAttempts = 0;
+class _GameScreenState extends State<GameScreen> {
+  CrosswordPuzzle get puzzle => widget.puzzle;
 
-  Puzzle get puzzle => widget.puzzle;
+  final Map<(int, int), String> _answers = {};
+  CrosswordClue? _selectedClue;
+  (int, int)? _cursorCell;
 
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now();
-    _flashCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _flashColor = ColorTween(
-      begin: Colors.transparent,
-      end: Colors.green.withOpacity(0.2),
-    ).animate(CurvedAnimation(parent: _flashCtrl, curve: Curves.easeOut));
-  }
-
-  @override
-  void dispose() {
-    _flashCtrl.dispose();
-    super.dispose();
-  }
-
-  void _onWordFound(WordEntry entry) {
-    setState(() => _foundWords.add(entry.word));
-    _flashCtrl.forward().then((_) => _flashCtrl.reverse());
-
-    if (_foundWords.length == puzzle.words.length) {
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (!mounted) return;
-        final elapsed = DateTime.now().difference(_startTime!);
-        final stars = elapsed.inSeconds < 90
-            ? 3
-            : elapsed.inSeconds < 180
-                ? 2
-                : 1;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WinScreen(
-              puzzle: puzzle,
-              stars: stars,
-              categoryIndex: widget.categoryIndex,
-              puzzleIndex: widget.puzzleIndex,
-            ),
-          ),
-        );
-      });
+    // Select first clue by default
+    if (puzzle.clues.isNotEmpty) {
+      _selectedClue = puzzle.clues.first;
+      _cursorCell = _selectedClue!.cells.first;
     }
   }
 
-  int get _starsPreview {
-    if (_startTime == null) return 3;
-    final elapsed = DateTime.now().difference(_startTime!);
-    if (elapsed.inSeconds < 90) return 3;
-    if (elapsed.inSeconds < 180) return 2;
-    return 1;
+  // All clues solved?
+  bool get _isComplete {
+    final ansMap = puzzle.answerMap;
+    return ansMap.keys.every((cell) => _answers[cell] == ansMap[cell]);
+  }
+
+  void _onCellTap(int r, int c) {
+    final clues = puzzle.cluesContaining(r, c);
+    if (clues.isEmpty) return;
+
+    if (_selectedClue != null && clues.contains(_selectedClue) &&
+        _cursorCell?.$1 == r && _cursorCell?.$2 == c) {
+      // Toggle direction if both directions available
+      final other = clues.where((cl) => cl != _selectedClue).toList();
+      if (other.isNotEmpty) {
+        setState(() {
+          _selectedClue = other.first;
+          _cursorCell   = (r, c);
+        });
+        return;
+      }
+    }
+
+    setState(() {
+      _selectedClue = clues.first;
+      _cursorCell   = (r, c);
+    });
+  }
+
+  void _onLetter(String letter) {
+    if (_cursorCell == null || _selectedClue == null) return;
+    final cell = _cursorCell!;
+    setState(() {
+      _answers[cell] = letter;
+    });
+
+    if (_isComplete) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (!mounted) return;
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => WinScreen(puzzle: puzzle)));
+      });
+      return;
+    }
+
+    _advanceCursor();
+  }
+
+  void _onDelete() {
+    if (_cursorCell == null || _selectedClue == null) return;
+    final cell = _cursorCell!;
+    if (_answers.containsKey(cell)) {
+      setState(() => _answers.remove(cell));
+    } else {
+      _retreatCursor();
+    }
+  }
+
+  void _advanceCursor() {
+    if (_selectedClue == null || _cursorCell == null) return;
+    final cells = _selectedClue!.cells;
+    final idx   = _selectedClue!.indexOfCell(_cursorCell!.$1, _cursorCell!.$2);
+    // Find next empty cell
+    for (int i = idx + 1; i < cells.length; i++) {
+      if (_answers[cells[i]] == null) {
+        setState(() => _cursorCell = cells[i]);
+        return;
+      }
+    }
+    // Wrap: find first empty
+    for (int i = 0; i < cells.length; i++) {
+      if (_answers[cells[i]] == null) {
+        setState(() => _cursorCell = cells[i]);
+        return;
+      }
+    }
+  }
+
+  void _retreatCursor() {
+    if (_selectedClue == null || _cursorCell == null) return;
+    final cells = _selectedClue!.cells;
+    final idx   = _selectedClue!.indexOfCell(_cursorCell!.$1, _cursorCell!.$2);
+    if (idx > 0) {
+      setState(() => _cursorCell = cells[idx - 1]);
+    }
+  }
+
+  // Toggle horizontal ↔ vertical for the current cell
+  void _toggleDirection() {
+    if (_cursorCell == null) return;
+    final r = _cursorCell!.$1, c = _cursorCell!.$2;
+    final clues = puzzle.cluesContaining(r, c);
+    if (clues.length < 2) return;
+    final other = clues.firstWhere((cl) => cl != _selectedClue,
+        orElse: () => clues.first);
+    setState(() {
+      _selectedClue = other;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final remaining = puzzle.words.length - _foundWords.length;
-
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: _flashColor,
-        builder: (context, _) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [AppColors.bgTop, AppColors.bgBottom],
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top bar
+            _TopBar(
+              puzzle: puzzle,
+              onBack: () => Navigator.pop(context),
+            ),
+            const Divider(height: 1),
+            // Grid
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: CrosswordGrid(
+                    puzzle: puzzle,
+                    playerAnswers: _answers,
+                    selectedClue: _selectedClue,
+                    cursorCell: _cursorCell,
+                    onCellTap: _onCellTap,
+                  ),
+                ),
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _GameTopBar(
-                    puzzleNumber: puzzle.number,
-                    category: puzzle.category,
-                    remaining: remaining,
-                    total: puzzle.words.length,
-                    stars: _starsPreview,
-                  ),
-                  // Topic pill
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      puzzle.topic,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                  // Grid
-                  Expanded(
-                    flex: 1,
-                    child: Center(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 12),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 15,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: LetterGrid(
-                          puzzle: puzzle,
-                          foundWords: _foundWords,
-                          onWordFound: _onWordFound,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
+            // Clue panel
+            _CluePanel(
+              clue: _selectedClue,
+              onToggle: _toggleDirection,
             ),
-          );
-        },
+            // Arabic keyboard
+            ArabicKeyboard(
+              onLetter: _onLetter,
+              onDelete: _onDelete,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _GameTopBar extends StatelessWidget {
-  final int puzzleNumber;
-  final String category;
-  final int remaining;
-  final int total;
-  final int stars;
-
-  const _GameTopBar({
-    required this.puzzleNumber,
-    required this.category,
-    required this.remaining,
-    required this.total,
-    required this.stars,
-  });
+class _TopBar extends StatelessWidget {
+  final CrosswordPuzzle puzzle;
+  final VoidCallback onBack;
+  const _TopBar({required this.puzzle, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+    return Container(
+      color: AppColors.btnMain,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-            onPressed: () => _showExitDialog(context),
+            onPressed: onBack,
           ),
           Expanded(
-            child: Column(
-              children: [
-                Text(
-                  'لغز رقم $puzzleNumber',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  '$remaining / $total كلمات متبقية',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+            child: Text(
+              puzzle.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
-          Row(
-            children: List.generate(3, (i) {
-              return Icon(
-                Icons.star_rounded,
-                color: i < stars ? AppColors.star : AppColors.starEmpty,
-                size: 22,
-              );
-            }),
-          ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
+}
 
-  void _showExitDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('مغادرة اللغز؟'),
-          content: const Text('سيتم فقدان تقدمك في هذا اللغز.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('استمر'),
+class _CluePanel extends StatelessWidget {
+  final CrosswordClue? clue;
+  final VoidCallback onToggle;
+  const _CluePanel({required this.clue, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final dir = clue?.direction == ClueDir.across ? 'أفقي' : 'رأسي';
+    final num = clue?.number ?? '';
+
+    return Container(
+      color: AppColors.cluePanel,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          // Direction toggle
+          GestureDetector(
+            onTap: onToggle,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.btnIcon,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$num $dir',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.pop(context);
-              },
-              child: const Text('خروج', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(width: 12),
+          // Clue text
+          Expanded(
+            child: Text(
+              clue?.clue ?? 'اختر خلية',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

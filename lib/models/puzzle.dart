@@ -1,57 +1,85 @@
-class WordEntry {
-  final String word;
+enum ClueDir { across, down }
+
+class CrosswordClue {
+  final int number;
+  final ClueDir direction;
+  final String clue;
+  final String answer;
   final int startRow;
   final int startCol;
-  final int dirRow;
-  final int dirCol;
 
-  const WordEntry({
-    required this.word,
+  const CrosswordClue({
+    required this.number,
+    required this.direction,
+    required this.clue,
+    required this.answer,
     required this.startRow,
     required this.startCol,
-    required this.dirRow,
-    required this.dirCol,
   });
 
-  List<(int, int)> get cells => List.generate(
-        word.length,
-        (i) => (startRow + i * dirRow, startCol + i * dirCol),
-      );
+  int get length => answer.length;
 
-  bool containsCell(int row, int col) =>
-      cells.any((c) => c.$1 == row && c.$2 == col);
+  // across: letters go LEFT (decreasing col) — Arabic RTL
+  // down:   letters go DOWN (increasing row)
+  List<(int, int)> get cells => direction == ClueDir.across
+      ? List.generate(length, (i) => (startRow, startCol - i))
+      : List.generate(length, (i) => (startRow + i, startCol));
+
+  bool containsCell(int r, int c) => cells.any((x) => x.$1 == r && x.$2 == c);
+
+  int indexOfCell(int r, int c) {
+    final list = cells;
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].$1 == r && list[i].$2 == c) return i;
+    }
+    return -1;
+  }
 }
 
-class Puzzle {
-  final int number;
-  final String category;
-  final String topic;
-  final List<List<String?>> grid;
-  final List<WordEntry> words;
+class CrosswordPuzzle {
+  final int id;
+  final String title;
+  final int gridRows;
+  final int gridCols;
+  final List<CrosswordClue> clues;
 
-  const Puzzle({
-    required this.number,
-    required this.category,
-    required this.topic,
-    required this.grid,
-    required this.words,
+  const CrosswordPuzzle({
+    required this.id,
+    required this.title,
+    required this.gridRows,
+    required this.gridCols,
+    required this.clues,
   });
 
-  int get rows => grid.length;
-  int get cols => grid.isNotEmpty ? grid[0].length : 0;
-  String? letterAt(int r, int c) => grid[r][c];
+  Set<(int, int)> get activeCells {
+    final s = <(int, int)>{};
+    for (final c in clues) s.addAll(c.cells);
+    return s;
+  }
+
+  Map<(int, int), String> get answerMap {
+    final m = <(int, int), String>{};
+    for (final c in clues) {
+      final cs = c.cells;
+      for (int i = 0; i < cs.length; i++) {
+        m[cs[i]] = c.answer[i];
+      }
+    }
+    return m;
+  }
+
+  // Which clues START at this cell
+  List<CrosswordClue> cluesStartingAt(int r, int c) =>
+      clues.where((cl) => cl.startRow == r && cl.startCol == c).toList();
+
+  // Which clues CONTAIN this cell
+  List<CrosswordClue> cluesContaining(int r, int c) =>
+      clues.where((cl) => cl.containsCell(r, c)).toList();
 }
 
-class Category {
+class PuzzlePack {
   final String name;
   final String emoji;
-  final int colorIndex;
-  final List<Puzzle> puzzles;
-
-  const Category({
-    required this.name,
-    required this.emoji,
-    required this.colorIndex,
-    required this.puzzles,
-  });
+  final List<CrosswordPuzzle> puzzles;
+  const PuzzlePack({required this.name, required this.emoji, required this.puzzles});
 }
