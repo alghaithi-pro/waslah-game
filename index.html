@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>وصلة - لعبة الكلمات العربية</title>
+  <title>كلمات متقاطعة - لعبة الكلمات العربية</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'Cairo', sans-serif;
-      background: linear-gradient(135deg, #0D47A1 0%, #1A237E 100%);
+      background: linear-gradient(135deg, #2EC4BE 0%, #93DDD9 100%);
       color: #fff;
       min-height: 100vh;
     }
@@ -34,56 +34,45 @@
       50% { transform: translateY(-12px); }
     }
 
-    .app-icon {
-      width: 140px;
-      height: 140px;
-      border-radius: 32px;
-      background: linear-gradient(135deg, #283593, #1A237E);
-      border: 3px solid #FFD700;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 6px;
-      padding: 12px;
+    /* # hash logo */
+    .hash-logo {
+      width: 130px;
+      height: 130px;
+      position: relative;
       margin: 0 auto;
-      box-shadow: 0 0 40px rgba(255,215,0,0.4), 0 0 80px rgba(255,215,0,0.15);
     }
-
-    .tile {
-      background: linear-gradient(135deg, #3949AB, #283593);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.6rem;
-      font-weight: 900;
-      color: #fff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    .hash-logo .bar {
+      position: absolute;
+      background: rgba(255,255,255,0.88);
+      border-radius: 14px;
     }
+    .bar-v1 { width: 26px; height: 100px; top: 15px; left: 22px; }
+    .bar-v2 { width: 26px; height: 100px; top: 15px; left: 82px; }
+    .bar-h1 { width: 100px; height: 26px; top: 30px; left: 15px; }
+    .bar-h2 { width: 100px; height: 26px; top: 74px; left: 15px; }
 
-    .app-title {
-      font-size: 3rem;
+    .title-pill {
+      display: inline-block;
+      background: #fff;
+      border-radius: 40px;
+      padding: 6px 28px;
+      margin: 4px 0;
+    }
+    .title-pill span {
+      font-size: 2.6rem;
       font-weight: 900;
-      background: linear-gradient(135deg, #fff 0%, #FFD700 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
+      color: #222;
       letter-spacing: 3px;
-    }
-
-    .app-subtitle {
-      font-size: 1.1rem;
-      color: rgba(255,255,255,0.7);
     }
 
     .version-badge {
       display: inline-block;
-      background: rgba(255,215,0,0.15);
-      border: 1px solid rgba(255,215,0,0.4);
+      background: rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.5);
       border-radius: 20px;
       padding: 4px 18px;
       font-size: 0.85rem;
-      color: #FFD700;
+      color: #fff;
       margin-top: 12px;
     }
 
@@ -94,32 +83,32 @@
       display: inline-flex;
       align-items: center;
       gap: 12px;
-      background: linear-gradient(135deg, #FFB300, #FF8F00);
-      color: #1A237E;
+      background: #1A8A86;
+      color: #fff;
       text-decoration: none;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       font-weight: 900;
       padding: 18px 52px;
-      border-radius: 50px;
-      box-shadow: 0 6px 30px rgba(255,179,0,0.5);
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(26,138,134,0.5);
       transition: transform 0.2s, box-shadow 0.2s;
       font-family: 'Cairo', sans-serif;
     }
     .download-btn:hover {
       transform: translateY(-3px);
-      box-shadow: 0 12px 40px rgba(255,179,0,0.65);
+      box-shadow: 0 12px 36px rgba(26,138,134,0.7);
     }
-    .download-btn svg { width: 24px; height: 24px; fill: #1A237E; }
-    .file-info { margin-top: 12px; font-size: 0.85rem; color: rgba(255,255,255,0.45); }
+    .download-btn svg { width: 24px; height: 24px; fill: #FFB800; }
+    .file-info { margin-top: 12px; font-size: 0.85rem; color: rgba(255,255,255,0.6); }
 
     /* Section */
     .section-title {
       font-size: 1.35rem;
       font-weight: 700;
-      color: #FFD700;
+      color: #fff;
       margin-bottom: 18px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255,215,0,0.2);
+      border-bottom: 1px solid rgba(255,255,255,0.3);
     }
 
     /* Features */
@@ -131,39 +120,20 @@
     }
 
     .feature-card {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,215,0,0.2);
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
       border-radius: 18px;
       padding: 22px 16px;
       text-align: center;
       transition: 0.2s;
     }
     .feature-card:hover {
-      border-color: rgba(255,215,0,0.5);
-      background: rgba(255,215,0,0.08);
+      border-color: rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.22);
     }
     .feature-icon { font-size: 2.2rem; margin-bottom: 10px; }
-    .feature-title { font-size: 1rem; font-weight: 700; color: #FFD700; margin-bottom: 5px; }
-    .feature-desc { font-size: 0.82rem; color: rgba(255,255,255,0.6); line-height: 1.6; }
-
-    /* Categories */
-    .categories-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-bottom: 50px;
-    }
-
-    .category-card {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 16px;
-      padding: 18px 12px;
-      text-align: center;
-    }
-    .category-emoji { font-size: 2rem; display: block; margin-bottom: 8px; }
-    .category-name { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .category-count { font-size: 0.78rem; color: rgba(255,255,255,0.55); }
+    .feature-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 5px; }
+    .feature-desc { font-size: 0.82rem; color: rgba(255,255,255,0.75); line-height: 1.6; }
 
     /* Steps */
     .steps { margin-bottom: 50px; }
@@ -172,29 +142,29 @@
       align-items: flex-start;
       gap: 14px;
       margin-bottom: 14px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,215,0,0.12);
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
       border-radius: 14px;
       padding: 16px;
     }
     .step-num {
       width: 36px; height: 36px; min-width: 36px;
-      background: linear-gradient(135deg, #FFB300, #FF8F00);
+      background: #1A8A86;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: 0.95rem; color: #1A237E;
+      font-weight: 900; font-size: 0.95rem; color: #fff;
     }
-    .step-content h4 { font-size: 0.95rem; font-weight: 700; color: #FFD700; margin-bottom: 3px; }
-    .step-content p { font-size: 0.82rem; color: rgba(255,255,255,0.6); line-height: 1.5; }
+    .step-content h4 { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 3px; }
+    .step-content p { font-size: 0.82rem; color: rgba(255,255,255,0.7); line-height: 1.5; }
 
     .footer {
       text-align: center;
       padding-top: 28px;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.35);
+      border-top: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.5);
       font-size: 0.82rem;
     }
-    .footer a { color: rgba(255,215,0,0.6); text-decoration: none; }
+    .footer a { color: rgba(255,255,255,0.8); text-decoration: none; }
   </style>
 </head>
 <body>
@@ -203,89 +173,62 @@
   <!-- Header -->
   <div class="header">
     <div class="icon-wrapper">
-      <div class="app-icon">
-        <div class="tile">و</div>
-        <div class="tile">ص</div>
-        <div class="tile">ل</div>
-        <div class="tile">ة</div>
+      <div class="hash-logo">
+        <div class="bar bar-v1"></div>
+        <div class="bar bar-v2"></div>
+        <div class="bar bar-h1"></div>
+        <div class="bar bar-h2"></div>
       </div>
     </div>
-    <h1 class="app-title">وصلة</h1>
-    <p class="app-subtitle">لعبة البحث عن الكلمات العربية</p>
-    <div class="version-badge">الإصدار 1.0.0</div>
+    <div>
+      <div class="title-pill"><span>كلمـات</span></div>
+      <br>
+      <div class="title-pill"><span>متقاطعة</span></div>
+    </div>
+    <div class="version-badge" style="margin-top:16px;">الإصدار 1.0.0</div>
   </div>
 
   <!-- Download -->
   <div class="download-section">
-    <a class="download-btn" href="waslah-game.apk" download="waslah-game.apk">
+    <a class="download-btn" href="waslah-game.apk" download="kalimat-mutaqatia.apk">
       <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-18l-7 7h4v6h6V9h4l-7-7z"/></svg>
       تحميل اللعبة
     </a>
-    <div class="file-info">APK • Android • الحجم ~42 ميجابايت</div>
+    <div class="file-info">APK • Android • الحجم ~41 ميجابايت</div>
   </div>
 
   <!-- Features -->
   <h2 class="section-title">مميزات اللعبة</h2>
   <div class="features-grid">
     <div class="feature-card">
-      <div class="feature-icon">🔤</div>
-      <div class="feature-title">30 لغزاً عربياً</div>
-      <div class="feature-desc">ألغاز متنوعة بكلمات عربية من مختلف المجالات</div>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">👆</div>
-      <div class="feature-title">تحكم بالسحب</div>
-      <div class="feature-desc">اسحب بإصبعك لتوصيل الحروف وتكوين الكلمات</div>
-    </div>
-    <div class="feature-card">
       <div class="feature-icon">🧩</div>
-      <div class="feature-title">شبكة غير منتظمة</div>
-      <div class="feature-desc">شكل الشبكة يشبه تماماً لعبة وصلة الأصلية</div>
+      <div class="feature-title">5 ألغاز متقاطعة</div>
+      <div class="feature-desc">ألغاز عربية بكلمات متقاطعة بين أفقي ورأسي</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⌨️</div>
+      <div class="feature-title">لوحة عربية</div>
+      <div class="feature-desc">لوحة مفاتيح عربية مخصصة لإدخال الإجابات بسهولة</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">↕️</div>
+      <div class="feature-title">أفقي ورأسي</div>
+      <div class="feature-desc">كلمات في اتجاهين مع إمكانية التبديل بينهما بنقرة</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏆</div>
+      <div class="feature-title">شاشة الفوز</div>
+      <div class="feature-desc">احتفل عند حل اللغز كاملاً وانتقل للغز التالي</div>
     </div>
     <div class="feature-card">
       <div class="feature-icon">⭐</div>
-      <div class="feature-title">نظام النجوم</div>
-      <div class="feature-desc">احصل على 3 نجوم بإكمال اللغز بسرعة</div>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🗂️</div>
-      <div class="feature-title">5 تصنيفات</div>
-      <div class="feature-desc">حيوانات، دول، طعام، رياضة، ومهن</div>
+      <div class="feature-title">مستويات</div>
+      <div class="feature-desc">مستوى مبتدئ ومتوسط لتناسب جميع المهارات</div>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🆓</div>
       <div class="feature-title">مجاني تماماً</div>
       <div class="feature-desc">بدون إعلانات ولا مشتريات داخلية</div>
-    </div>
-  </div>
-
-  <!-- Categories -->
-  <h2 class="section-title">التصنيفات</h2>
-  <div class="categories-grid" style="margin-bottom:50px;">
-    <div class="category-card">
-      <span class="category-emoji">🐾</span>
-      <div class="category-name">الحيوانات</div>
-      <div class="category-count">6 ألغاز</div>
-    </div>
-    <div class="category-card">
-      <span class="category-emoji">🌍</span>
-      <div class="category-name">دول عربية</div>
-      <div class="category-count">6 ألغاز</div>
-    </div>
-    <div class="category-card">
-      <span class="category-emoji">🍽️</span>
-      <div class="category-name">الطعام</div>
-      <div class="category-count">6 ألغاز</div>
-    </div>
-    <div class="category-card">
-      <span class="category-emoji">⚽</span>
-      <div class="category-name">الرياضة</div>
-      <div class="category-count">6 ألغاز</div>
-    </div>
-    <div class="category-card">
-      <span class="category-emoji">👔</span>
-      <div class="category-name">المهن</div>
-      <div class="category-count">6 ألغاز</div>
     </div>
   </div>
 
@@ -316,7 +259,7 @@
   </div>
 
   <div class="footer">
-    <p>© 2026 وصلة •
+    <p>© 2026 كلمات متقاطعة •
       <a href="https://github.com/alghaithi-pro/waslah-game">GitHub</a>
     </p>
   </div>
