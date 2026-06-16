@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/progress.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Progress.init();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -19,8 +21,10 @@ class KalimatApp extends StatelessWidget {
     return MaterialApp(
       title: 'كلمات متقاطعة',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: false,
+      theme: ThemeData(useMaterial3: false),
+      builder: (ctx, child) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: child!,
       ),
       home: const HomeScreen(),
     );

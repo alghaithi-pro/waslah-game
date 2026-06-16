@@ -1,200 +1,339 @@
 import 'package:flutter/material.dart';
-import '../models/puzzle.dart';
+import '../models/models.dart';
+import '../services/progress.dart';
 import '../theme/colors.dart';
-import '../widgets/crossword_grid.dart';
-import '../widgets/arabic_keyboard.dart';
-import 'win_screen.dart';
 
 class GameScreen extends StatefulWidget {
-  final CrosswordPuzzle puzzle;
-  const GameScreen({super.key, required this.puzzle});
+  final Puzzle puzzle;
+  final int puzzleNumber;
+  const GameScreen({super.key, required this.puzzle, required this.puzzleNumber});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
-  CrosswordPuzzle get puzzle => widget.puzzle;
+  Puzzle get puzzle => widget.puzzle;
 
-  final Map<(int, int), String> _answers = {};
-  CrosswordClue? _selectedClue;
-  (int, int)? _cursorCell;
+  late List<String> _pool;           // all letter choices (answer + extras shuffled)
+  late List<bool>   _poolUsed;       // whether each pool letter is used
+  late List<String?> _placed;        // letters placed by user
+  int  _cursor = 0;                  // next empty slot index
+  int  _hintsUsed = 0;
+  bool _won = false;
 
   @override
   void initState() {
     super.initState();
-    // Select first clue by default
-    if (puzzle.clues.isNotEmpty) {
-      _selectedClue = puzzle.clues.first;
-      _cursorCell = _selectedClue!.cells.first;
-    }
+    _pool     = puzzle.generatePool();
+    _poolUsed = List.filled(_pool.length, false);
+    _placed   = List.filled(puzzle.answer.length, null);
   }
 
-  // All clues solved?
-  bool get _isComplete {
-    final ansMap = puzzle.answerMap;
-    return ansMap.keys.every((cell) => _answers[cell] == ansMap[cell]);
+  void _tapPoolLetter(int poolIdx) {
+    if (_poolUsed[poolIdx] || _cursor >= puzzle.answer.length || _won) return;
+    setState(() {
+      _placed[_cursor] = _pool[poolIdx];
+      _poolUsed[poolIdx] = true;
+      _cursor++;
+    });
+    if (_cursor == puzzle.answer.length) _checkWin();
   }
 
-  void _onCellTap(int r, int c) {
-    final clues = puzzle.cluesContaining(r, c);
-    if (clues.isEmpty) return;
+  void _deleteLetter() {
+    if (_cursor == 0 || _won) return;
+    setState(() {
+      _cursor--;
+      final letter = _placed[_cursor];
+      _placed[_cursor] = null;
+      // restore letter to pool
+      final idx = _poolUsed.indexWhere(
+          (used, [i = 0]) => false); // find first used slot with that letter
+      // search manually
+      for (int i = 0; i < _pool.length; i++) {
+        if (_poolUsed[i] && _pool[i] == letter) {
+          _poolUsed[i] = false;
+          break;
+        }
+      }
+    });
+  }
 
-    if (_selectedClue != null && clues.contains(_selectedClue) &&
-        _cursorCell?.$1 == r && _cursorCell?.$2 == c) {
-      // Toggle direction if both directions available
-      final other = clues.where((cl) => cl != _selectedClue).toList();
-      if (other.isNotEmpty) {
-        setState(() {
-          _selectedClue = other.first;
-          _cursorCell   = (r, c);
-        });
+  void _revealLetter() {
+    if (_cursor >= puzzle.answer.length || _won) return;
+    final correct = puzzle.answer[_cursor];
+    // find an unused pool letter that matches
+    for (int i = 0; i < _pool.length; i++) {
+      if (!_poolUsed[i] && _pool[i] == correct) {
+        setState(() => _hintsUsed++);
+        _tapPoolLetter(i);
         return;
       }
     }
-
-    setState(() {
-      _selectedClue = clues.first;
-      _cursorCell   = (r, c);
-    });
   }
 
-  void _onLetter(String letter) {
-    if (_cursorCell == null || _selectedClue == null) return;
-    final cell = _cursorCell!;
-    setState(() {
-      _answers[cell] = letter;
-    });
-
-    if (_isComplete) {
+  void _checkWin() {
+    final typed = _placed.join('');
+    if (typed == puzzle.answer) {
+      final stars = _hintsUsed == 0 ? 3 : (_hintsUsed == 1 ? 2 : 1);
+      setState(() => _won = true);
+      Progress.completePuzzle(puzzle.id, stars).then((_) {
+        if (!mounted) return;
+        _showWinDialog(stars);
+      });
+    } else {
+      // wrong — reset
       Future.delayed(const Duration(milliseconds: 400), () {
         if (!mounted) return;
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => WinScreen(puzzle: puzzle)));
+        setState(() {
+          _placed   = List.filled(puzzle.answer.length, null);
+          _poolUsed = List.filled(_pool.length, false);
+          _cursor   = 0;
+        });
       });
-      return;
-    }
-
-    _advanceCursor();
-  }
-
-  void _onDelete() {
-    if (_cursorCell == null || _selectedClue == null) return;
-    final cell = _cursorCell!;
-    if (_answers.containsKey(cell)) {
-      setState(() => _answers.remove(cell));
-    } else {
-      _retreatCursor();
     }
   }
 
-  void _advanceCursor() {
-    if (_selectedClue == null || _cursorCell == null) return;
-    final cells = _selectedClue!.cells;
-    final idx   = _selectedClue!.indexOfCell(_cursorCell!.$1, _cursorCell!.$2);
-    // Find next empty cell
-    for (int i = idx + 1; i < cells.length; i++) {
-      if (_answers[cells[i]] == null) {
-        setState(() => _cursorCell = cells[i]);
-        return;
-      }
-    }
-    // Wrap: find first empty
-    for (int i = 0; i < cells.length; i++) {
-      if (_answers[cells[i]] == null) {
-        setState(() => _cursorCell = cells[i]);
-        return;
-      }
-    }
-  }
-
-  void _retreatCursor() {
-    if (_selectedClue == null || _cursorCell == null) return;
-    final cells = _selectedClue!.cells;
-    final idx   = _selectedClue!.indexOfCell(_cursorCell!.$1, _cursorCell!.$2);
-    if (idx > 0) {
-      setState(() => _cursorCell = cells[idx - 1]);
-    }
-  }
-
-  // Toggle horizontal ↔ vertical for the current cell
-  void _toggleDirection() {
-    if (_cursorCell == null) return;
-    final r = _cursorCell!.$1, c = _cursorCell!.$2;
-    final clues = puzzle.cluesContaining(r, c);
-    if (clues.length < 2) return;
-    final other = clues.firstWhere((cl) => cl != _selectedClue,
-        orElse: () => clues.first);
-    setState(() {
-      _selectedClue = other;
-    });
+  void _showWinDialog(int stars) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _WinDialog(
+        stars: stars,
+        onNext: () {
+          Navigator.pop(context);  // close dialog
+          Navigator.pop(context);  // go back to puzzle list
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final totalStars = Progress.totalStars;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top bar
-            _TopBar(
-              puzzle: puzzle,
-              onBack: () => Navigator.pop(context),
-            ),
-            const Divider(height: 1),
-            // Grid
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: CrosswordGrid(
-                    puzzle: puzzle,
-                    playerAnswers: _answers,
-                    selectedClue: _selectedClue,
-                    cursorCell: _cursorCell,
-                    onCellTap: _onCellTap,
-                  ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppColors.bgTop, AppColors.bgBottom],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top bar
+              _TopBar(
+                title: 'لغز رقم ${widget.puzzleNumber}',
+                stars: totalStars,
+                onBack: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 16),
+              // Clue card
+              Expanded(
+                flex: 5,
+                child: _ClueCard(
+                  sentence: puzzle.sentence,
+                  onReveal: _revealLetter,
+                  onDelete: _deleteLetter,
                 ),
               ),
-            ),
-            // Clue panel
-            _CluePanel(
-              clue: _selectedClue,
-              onToggle: _toggleDirection,
-            ),
-            // Arabic keyboard
-            ArabicKeyboard(
-              onLetter: _onLetter,
-              onDelete: _onDelete,
-            ),
-          ],
+              const SizedBox(height: 16),
+              // Answer boxes
+              _AnswerBoxes(
+                answer: puzzle.answer,
+                placed: _placed,
+                cursor: _cursor,
+                won: _won,
+              ),
+              const SizedBox(height: 20),
+              // Letter pool
+              Expanded(
+                flex: 4,
+                child: _LetterPool(
+                  pool: _pool,
+                  used: _poolUsed,
+                  onTap: _tapPoolLetter,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+// ─── Widgets ────────────────────────────────────────────────────────────────
+
 class _TopBar extends StatelessWidget {
-  final CrosswordPuzzle puzzle;
+  final String title;
+  final int stars;
   final VoidCallback onBack;
-  const _TopBar({required this.puzzle, required this.onBack});
+  const _TopBar({required this.title, required this.stars, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.btnMain,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      color: AppColors.navBar,
+      height: 52,
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          TextButton.icon(
             onPressed: onBack,
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+            label: const Text('رجوع',
+                style: TextStyle(color: Colors.white, fontSize: 15)),
           ),
           Expanded(
+            child: Text(title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold)),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Row(
+              children: [
+                Text('$stars',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+                const SizedBox(width: 4),
+                const Icon(Icons.star, color: AppColors.gold, size: 20),
+                const SizedBox(width: 8),
+                const Icon(Icons.add_circle_outline,
+                    color: Colors.white70, size: 22),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClueCard extends StatelessWidget {
+  final String sentence;
+  final VoidCallback onReveal;
+  final VoidCallback onDelete;
+  const _ClueCard({
+    required this.sentence,
+    required this.onReveal,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.midTeal,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('أكمل ...',
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 14)),
+          ),
+          // Body — sentence
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              color: AppColors.cardDark,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Center(
+                child: Text(
+                  sentence,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Footer buttons
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, color: Colors.white70, size: 18),
+                  label: const Text('إحذف حرف',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+              ),
+              Container(width: 1, height: 36, color: Colors.white30),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onReveal,
+                  icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 18),
+                  label: const Text('إكشف حرف',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnswerBoxes extends StatelessWidget {
+  final String answer;
+  final List<String?> placed;
+  final int cursor;
+  final bool won;
+  const _AnswerBoxes({
+    required this.answer,
+    required this.placed,
+    required this.cursor,
+    required this.won,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final n = answer.length;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      // RTL: index 0 on the right (first Arabic letter)
+      textDirection: TextDirection.rtl,
+      children: List.generate(n, (i) {
+        final isActive = i == cursor && !won;
+        final letter   = placed[i];
+        return Container(
+          width: 44,
+          height: 44,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: won
+                ? AppColors.gold
+                : (isActive ? AppColors.gold : AppColors.cardDark),
+            borderRadius: BorderRadius.circular(8),
+            border: isActive
+                ? Border.all(color: Colors.white, width: 2)
+                : null,
+          ),
+          child: Center(
             child: Text(
-              puzzle.title,
-              textAlign: TextAlign.center,
+              letter ?? '',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -202,60 +341,131 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 48),
-        ],
-      ),
+        );
+      }),
     );
   }
 }
 
-class _CluePanel extends StatelessWidget {
-  final CrosswordClue? clue;
-  final VoidCallback onToggle;
-  const _CluePanel({required this.clue, required this.onToggle});
+class _LetterPool extends StatelessWidget {
+  final List<String> pool;
+  final List<bool> used;
+  final void Function(int) onTap;
+  const _LetterPool({required this.pool, required this.used, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final dir = clue?.direction == ClueDir.across ? 'أفقي' : 'رأسي';
-    final num = clue?.number ?? '';
+    final half = (pool.length / 2).ceil();
+    final row1 = pool.sublist(0, half);
+    final row2 = pool.sublist(half);
 
-    return Container(
-      color: AppColors.cluePanel,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          // Direction toggle
-          GestureDetector(
-            onTap: onToggle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.btnIcon,
-                borderRadius: BorderRadius.circular(8),
-              ),
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildRow(row1, 0),
+        const SizedBox(height: 8),
+        _buildRow(row2, half),
+      ],
+    );
+  }
+
+  Widget _buildRow(List<String> letters, int offset) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(letters.length, (i) {
+        final idx    = offset + i;
+        final isUsed = used[idx];
+        return GestureDetector(
+          onTap: isUsed ? null : () => onTap(idx),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 42,
+            height: 42,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: isUsed ? Colors.transparent : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: isUsed
+                  ? null
+                  : [
+                      const BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 3,
+                          offset: Offset(0, 2)),
+                    ],
+            ),
+            child: Center(
               child: Text(
-                '$num $dir',
+                isUsed ? '' : letters[i],
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF333333),
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          // Clue text
-          Expanded(
-            child: Text(
-              clue?.clue ?? 'اختر خلية',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        );
+      }),
+    );
+  }
+}
+
+class _WinDialog extends StatelessWidget {
+  final int stars;
+  final VoidCallback onNext;
+  const _WinDialog({required this.stars, required this.onNext});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: AppColors.cardDark,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('أحسنت!',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900)),
+            const SizedBox(height: 16),
+            // Stars
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(3, (i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(
+                  i < stars ? Icons.star : Icons.star_border,
+                  color: AppColors.gold,
+                  size: 40,
+                ),
+              )),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: onNext,
+                child: const Text('التالي',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

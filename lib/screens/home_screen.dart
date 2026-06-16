@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
-import 'levels_screen.dart';
+import 'groups_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,11 +13,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final sw = MediaQuery.of(context).size.width;
+    final logoSize = sw * 0.78;
+
     return Scaffold(
       body: Container(
-        width: double.infinity,
-        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -29,18 +29,15 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               const Spacer(flex: 2),
-              // Hash logo
-              _HashLogo(size: size.width * 0.62),
-              const SizedBox(height: 20),
-              // Title
-              _buildTitle(),
+              // # logo with title overlaid
+              _HashWithTitle(size: logoSize),
               const Spacer(flex: 2),
               // Buttons
               _GameButton(
                 label: 'إبدأ',
                 icon: Icons.send,
                 onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LevelsScreen())),
+                    MaterialPageRoute(builder: (_) => const GroupsScreen())),
               ),
               const SizedBox(height: 10),
               _GameButton(
@@ -55,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {},
               ),
               const Spacer(flex: 2),
-              // Sound button
+              // Sound toggle
               GestureDetector(
                 onTap: () => setState(() => _soundOn = !_soundOn),
                 child: Container(
@@ -72,53 +69,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _buildTitle() {
-    return Column(
-      children: [
-        _TitleLine(text: 'كلمـات'),
-        const SizedBox(height: 6),
-        _TitleLine(text: 'متقاطعة'),
-      ],
-    );
-  }
 }
 
-class _TitleLine extends StatelessWidget {
-  final String text;
-  const _TitleLine({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 36,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF222222),
-          letterSpacing: 4,
-        ),
-      ),
-    );
-  }
-}
-
-class _HashLogo extends StatelessWidget {
+/// # logo with text pills overlaid at the horizontal bar positions
+class _HashWithTitle extends StatelessWidget {
   final double size;
-  const _HashLogo({required this.size});
+  const _HashWithTitle({required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -126,63 +89,102 @@ class _HashLogo extends StatelessWidget {
     final barLen   = size * 0.85;
     final gap      = size * 0.24;
     final radius   = barThick / 2;
-    final color    = Colors.white.withOpacity(0.88);
+    final barColor = Colors.white.withOpacity(0.85);
+
+    // Horizontal bar top positions (same formula as before)
+    final h1Top = size / 2 - gap / 2 - barThick;
+    final h2Top = size / 2 + gap / 2;
+    final leftOff = (size - barLen) / 2;
 
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
-        alignment: Alignment.center,
         children: [
-          // Vertical bar LEFT
+          // Left vertical bar
           Positioned(
             left: size / 2 - gap / 2 - barThick,
             top: (size - barLen) / 2,
-            child: Container(
-              width: barThick,
-              height: barLen,
-              decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(radius)),
-            ),
+            child: _Bar(w: barThick, h: barLen, r: radius, color: barColor),
           ),
-          // Vertical bar RIGHT
+          // Right vertical bar
           Positioned(
             left: size / 2 + gap / 2,
             top: (size - barLen) / 2,
-            child: Container(
-              width: barThick,
-              height: barLen,
-              decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(radius)),
-            ),
+            child: _Bar(w: barThick, h: barLen, r: radius, color: barColor),
           ),
-          // Horizontal bar TOP
+          // Horizontal bar 1
           Positioned(
-            left: (size - barLen) / 2,
-            top: size / 2 - gap / 2 - barThick,
-            child: Container(
-              width: barLen,
-              height: barThick,
-              decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(radius)),
-            ),
+            left: leftOff,
+            top: h1Top,
+            child: _Bar(w: barLen, h: barThick, r: radius, color: barColor),
           ),
-          // Horizontal bar BOTTOM
+          // Horizontal bar 2
           Positioned(
-            left: (size - barLen) / 2,
-            top: size / 2 + gap / 2,
-            child: Container(
-              width: barLen,
-              height: barThick,
-              decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(radius)),
-            ),
+            left: leftOff,
+            top: h2Top,
+            child: _Bar(w: barLen, h: barThick, r: radius, color: barColor),
+          ),
+          // Title pill 1 — overlaid on bar 1
+          Positioned(
+            top: h1Top,
+            left: 0,
+            right: 0,
+            height: barThick,
+            child: const Center(child: _TitlePill(text: 'كلمـات')),
+          ),
+          // Title pill 2 — overlaid on bar 2
+          Positioned(
+            top: h2Top,
+            left: 0,
+            right: 0,
+            height: barThick,
+            child: const Center(child: _TitlePill(text: 'متقاطعة')),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  final double w, h, r;
+  final Color color;
+  const _Bar({required this.w, required this.h, required this.r, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(r),
+        ),
+      );
+}
+
+class _TitlePill extends StatelessWidget {
+  final String text;
+  const _TitlePill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF222222),
+            letterSpacing: 3,
+          ),
+        ),
       ),
     );
   }
@@ -193,11 +195,7 @@ class _GameButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _GameButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
+  const _GameButton({required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -207,25 +205,24 @@ class _GameButton extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 36),
         height: 60,
         decoration: BoxDecoration(
-          color: AppColors.btnMain,
+          color: const Color(0xFF27B5AF),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            // Icon section (left side - darker)
+            // Icon panel — RIGHT side in RTL
             Container(
               width: 60,
               height: double.infinity,
               decoration: const BoxDecoration(
                 color: AppColors.btnIcon,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                  bottomRight: Radius.circular(8),
                 ),
               ),
               child: Icon(icon, color: AppColors.iconClr, size: 26),
             ),
-            // Label
             Expanded(
               child: Center(
                 child: Text(
