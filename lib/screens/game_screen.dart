@@ -4,114 +4,198 @@ import '../services/progress.dart';
 import '../theme/colors.dart';
 
 class GameScreen extends StatefulWidget {
-  final Puzzle puzzle;
-  final int puzzleNumber;
-  const GameScreen({super.key, required this.puzzle, required this.puzzleNumber});
+  final WordSearchLevel level;
+  final int levelNumber;
+  const GameScreen({super.key, required this.level, required this.levelNumber});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
-  Puzzle get puzzle => widget.puzzle;
+  WordSearchLevel get level => widget.level;
 
-  late List<String> _pool;           // all letter choices (answer + extras shuffled)
-  late List<bool>   _poolUsed;       // whether each pool letter is used
-  late List<String?> _placed;        // letters placed by user
-  int  _cursor = 0;                  // next empty slot index
-  int  _hintsUsed = 0;
-  bool _won = false;
+  late List<List<String>> _grid;
+  late List<bool>         _found;
+  final Set<int>          _foundCells    = {};
+  Set<int>                _selectedCells = {};
+
+  // ── gesture state ──────────────────────────────────────────────────────────
+  final _gridKey = GlobalKey();
+  int? _startRow, _startCol;
+  int? _curRow,   _curCol;
+  bool _wrongFlash = false;
 
   @override
   void initState() {
     super.initState();
-    _pool     = puzzle.generatePool();
-    _poolUsed = List.filled(_pool.length, false);
-    _placed   = List.filled(puzzle.answer.length, null);
+    _grid  = level.buildGrid();
+    _found = List.filled(level.words.length, false);
   }
 
-  void _tapPoolLetter(int poolIdx) {
-    if (_poolUsed[poolIdx] || _cursor >= puzzle.answer.length || _won) return;
+  int  get _foundCount => _found.where((f) => f).length;
+  bool get _allFound   => _foundCount == level.words.length;
+
+  // ── coordinate helper ──────────────────────────────────────────────────────
+
+  /// Maps a global screen offset → (row, logicalCol) inside the grid.
+  /// Returns null if the offset is outside the grid.
+  (int, int)? _cellAt(Offset global) {
+    final box = _gridKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    final local = box.globalToLocal(global);
+    final cols  = level.cols;
+    final rows  = level.rows;
+    final cw    = box.size.width  / cols;
+    final ch    = box.size.height / rows;
+    final vCol  = (local.dx / cw).floor();   // visual index (RTL: 0 = leftmost)
+    final lCol  = cols - 1 - vCol;           // logical col (RTL flip)
+    final row   = (local.dy / ch).floor();
+    if (row < 0 || row >= rows || lCol < 0 || lCol >= cols) return null;
+    return (row, lCol);
+  }
+
+  // ── selection computation ──────────────────────────────────────────────────
+
+  Set<int> _computeSelection(int sr, int sc, int cr, int cc) {
+    final cells = <int>{};
+    final dr = cr - sr;
+    final dc = cc - sc;
+
+    if (dr == 0 && dc == 0) {
+      cells.add(sr * 100 + sc);
+      return cells;
+    }
+
+    if (dr.abs() >= dc.abs()) {
+      // vertical
+      final step = dr > 0 ? 1 : -1;
+      for (int r = sr; r != cr + step; r += step) { cells.add(r * 100 + sc); }
+    } else {
+      // horizontal
+      final step = dc > 0 ? 1 : -1;
+      for (int c = sc; c != cc + step; c += step) { cells.add(sr * 100 + c); }
+    }
+    return cells;
+  }
+
+  // ── gesture handlers ───────────────────────────────────────────────────────
+
+  void _onPanStart(DragStartDetails d) {
+    final cell = _cellAt(d.globalPosition);
+    if (cell == null) return;
     setState(() {
-      _placed[_cursor] = _pool[poolIdx];
-      _poolUsed[poolIdx] = true;
-      _cursor++;
+      _startRow = _curRow = cell.$1;
+      _startCol = _curCol = cell.$2;
+      _selectedCells = {cell.$1 * 100 + cell.$2};
+      _wrongFlash = false;
     });
-    if (_cursor == puzzle.answer.length) _checkWin();
   }
 
-  void _deleteLetter() {
-    if (_cursor == 0 || _won) return;
+  void _onPanUpdate(DragUpdateDetails d) {
+    if (_startRow == null) return;
+    final cell = _cellAt(d.globalPosition);
+    if (cell == null) return;
+    if (cell.$1 == _curRow && cell.$2 == _curCol) return;
     setState(() {
-      _cursor--;
-      final letter = _placed[_cursor];
-      _placed[_cursor] = null;
-      // restore letter to pool
-      final idx = _poolUsed.indexWhere(
-          (used, [i = 0]) => false); // find first used slot with that letter
-      // search manually
-      for (int i = 0; i < _pool.length; i++) {
-        if (_poolUsed[i] && _pool[i] == letter) {
-          _poolUsed[i] = false;
-          break;
-        }
+      _curRow = cell.$1;
+      _curCol = cell.$2;
+      _selectedCells =
+          _computeSelection(_startRow!, _startCol!, _curRow!, _curCol!);
+    });
+  }
+
+  void _onPanEnd(DragEndDetails _) => _validateSelection();
+
+  // ── validation ─────────────────────────────────────────────────────────────
+
+  void _validateSelection() {
+    if (_startRow == null || _startCol == null ||
+        _curRow   == null || _curCol   == null) {
+      _clearSelection();
+      return;
+    }
+
+    final dr = _curRow! - _startRow!;
+    final dc = _curCol! - _startCol!;
+
+    // Build the selected string (ordered from start → current)
+    final buf = StringBuffer();
+    if (dr.abs() >= dc.abs()) {
+      final step = dr == 0 ? 1 : (dr > 0 ? 1 : -1);
+      for (int r = _startRow!; r != _curRow! + step; r += step) {
+        buf.write(_grid[r][_startCol!]);
       }
-    });
-  }
+    } else {
+      final step = dc > 0 ? 1 : -1;
+      for (int c = _startCol!; c != _curCol! + step; c += step) {
+        buf.write(_grid[_startRow!][c]);
+      }
+    }
 
-  void _revealLetter() {
-    if (_cursor >= puzzle.answer.length || _won) return;
-    final correct = puzzle.answer[_cursor];
-    // find an unused pool letter that matches
-    for (int i = 0; i < _pool.length; i++) {
-      if (!_poolUsed[i] && _pool[i] == correct) {
-        setState(() => _hintsUsed++);
-        _tapPoolLetter(i);
+    final selected = buf.toString();
+    final reversed = selected.split('').reversed.join();
+
+    for (int i = 0; i < level.words.length; i++) {
+      if (_found[i]) continue;
+      final word = level.words[i].word;
+      if (selected == word || reversed == word) {
+        setState(() {
+          _markWordFound(i);
+          _clearSelection();
+        });
         return;
       }
     }
+
+    // Wrong selection — flash red then clear
+    setState(() => _wrongFlash = true);
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) setState(_clearSelection);
+    });
   }
 
-  void _checkWin() {
-    final typed = _placed.join('');
-    if (typed == puzzle.answer) {
-      final stars = _hintsUsed == 0 ? 3 : (_hintsUsed == 1 ? 2 : 1);
-      setState(() => _won = true);
-      Progress.completePuzzle(puzzle.id, stars).then((_) {
-        if (!mounted) return;
-        _showWinDialog(stars);
-      });
-    } else {
-      // wrong — reset
+  void _markWordFound(int idx) {
+    final wp = level.words[idx];
+    for (int i = 0; i < wp.word.length; i++) {
+      final r = wp.horizontal ? wp.row : wp.row + i;
+      final c = wp.horizontal ? wp.col + i : wp.col;
+      _foundCells.add(r * 100 + c);
+    }
+    _found[idx] = true;
+    if (_allFound) {
       Future.delayed(const Duration(milliseconds: 400), () {
-        if (!mounted) return;
-        setState(() {
-          _placed   = List.filled(puzzle.answer.length, null);
-          _poolUsed = List.filled(_pool.length, false);
-          _cursor   = 0;
-        });
+        if (mounted) _showWinDialog();
       });
     }
   }
 
-  void _showWinDialog(int stars) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _WinDialog(
-        stars: stars,
-        onNext: () {
-          Navigator.pop(context);  // close dialog
-          Navigator.pop(context);  // go back to puzzle list
-        },
-      ),
-    );
+  void _clearSelection() {
+    _selectedCells = {};
+    _startRow = _startCol = _curRow = _curCol = null;
+    _wrongFlash = false;
   }
+
+  void _showWinDialog() {
+    Progress.completeLevel(level.id, 3).then((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _WinDialog(
+          onNext: () {
+            Navigator.pop(context); // dialog
+            Navigator.pop(context); // game screen
+          },
+        ),
+      );
+    });
+  }
+
+  // ── build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final totalStars = Progress.totalStars;
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -124,41 +208,35 @@ class _GameScreenState extends State<GameScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top bar
               _TopBar(
-                title: 'لغز رقم ${widget.puzzleNumber}',
-                stars: totalStars,
+                levelNumber: widget.levelNumber,
+                levelName: level.name,
                 onBack: () => Navigator.pop(context),
               ),
-              const SizedBox(height: 16),
-              // Clue card
-              Expanded(
-                flex: 5,
-                child: _ClueCard(
-                  sentence: puzzle.sentence,
-                  onReveal: _revealLetter,
-                  onDelete: _deleteLetter,
+              const SizedBox(height: 10),
+              // ── grid with gesture detector ──────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: GestureDetector(
+                  onPanStart:  _onPanStart,
+                  onPanUpdate: _onPanUpdate,
+                  onPanEnd:    _onPanEnd,
+                  child: _WordGrid(
+                    key: _gridKey,
+                    grid:          _grid,
+                    foundCells:    _foundCells,
+                    selectedCells: _selectedCells,
+                    wrongFlash:    _wrongFlash,
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              // Answer boxes
-              _AnswerBoxes(
-                answer: puzzle.answer,
-                placed: _placed,
-                cursor: _cursor,
-                won: _won,
-              ),
-              const SizedBox(height: 20),
-              // Letter pool
+              const SizedBox(height: 10),
+              _ProgressBar(found: _foundCount, total: level.words.length),
+              const SizedBox(height: 8),
               Expanded(
-                flex: 4,
-                child: _LetterPool(
-                  pool: _pool,
-                  used: _poolUsed,
-                  onTap: _tapPoolLetter,
-                ),
+                child: _CluesPanel(words: level.words, found: _found),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -167,13 +245,16 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-// ─── Widgets ────────────────────────────────────────────────────────────────
+// ─── Top Bar ─────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  final String title;
-  final int stars;
+  final int levelNumber;
+  final String levelName;
   final VoidCallback onBack;
-  const _TopBar({required this.title, required this.stars, required this.onBack});
+  const _TopBar(
+      {required this.levelNumber,
+      required this.levelName,
+      required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -184,34 +265,165 @@ class _TopBar extends StatelessWidget {
         children: [
           TextButton.icon(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+            icon: const Icon(Icons.arrow_forward_ios,
+                color: Colors.white, size: 16),
             label: const Text('رجوع',
                 style: TextStyle(color: Colors.white, fontSize: 15)),
           ),
           Expanded(
-            child: Text(title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold)),
+            child: Text(
+              'مستوى $levelNumber — $levelName',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold),
+            ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
+          const SizedBox(width: 52),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Word Grid ────────────────────────────────────────────────────────────────
+
+class _WordGrid extends StatelessWidget {
+  final List<List<String>> grid;
+  final Set<int> foundCells;
+  final Set<int> selectedCells;
+  final bool wrongFlash;
+
+  const _WordGrid({
+    super.key,
+    required this.grid,
+    required this.foundCells,
+    required this.selectedCells,
+    required this.wrongFlash,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = grid.length;
+    final cols = grid[0].length;
+
+    return AspectRatio(
+      aspectRatio: cols / rows,
+      child: Column(
+        children: List.generate(
+          rows,
+          (r) => Expanded(
             child: Row(
-              children: [
-                Text('$stars',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16)),
-                const SizedBox(width: 4),
-                const Icon(Icons.star, color: AppColors.gold, size: 20),
-                const SizedBox(width: 8),
-                const Icon(Icons.add_circle_outline,
-                    color: Colors.white70, size: 22),
-                const SizedBox(width: 8),
-              ],
+              textDirection: TextDirection.rtl,
+              children: List.generate(cols, (c) {
+                final key = r * 100 + c;
+                return Expanded(
+                  child: _GridCell(
+                    letter:     grid[r][c],
+                    isFound:    foundCells.contains(key),
+                    isSelected: selectedCells.contains(key),
+                    wrongFlash: wrongFlash && selectedCells.contains(key),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GridCell extends StatelessWidget {
+  final String letter;
+  final bool isFound;
+  final bool isSelected;
+  final bool wrongFlash;
+
+  const _GridCell({
+    required this.letter,
+    required this.isFound,
+    required this.isSelected,
+    required this.wrongFlash,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color textColor;
+
+    if (isFound) {
+      bg        = AppColors.gold;
+      textColor = Colors.white;
+    } else if (wrongFlash) {
+      bg        = Colors.redAccent;
+      textColor = Colors.white;
+    } else if (isSelected) {
+      bg        = AppColors.midTeal;
+      textColor = const Color(0xFF333333);
+    } else {
+      bg        = Colors.white;
+      textColor = const Color(0xFF222222);
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      margin: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: (!isFound && !isSelected && !wrongFlash)
+            ? [const BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1))]
+            : null,
+      ),
+      child: Center(
+        child: FittedBox(
+          child: Text(
+            letter,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+
+class _ProgressBar extends StatelessWidget {
+  final int found;
+  final int total;
+  const _ProgressBar({required this.found, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          Text(
+            'الكلمات  $found / $total',
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: total > 0 ? found / total : 0,
+                backgroundColor: Colors.white30,
+                valueColor:
+                    const AlwaysStoppedAnimation(AppColors.gold),
+                minHeight: 8,
+              ),
             ),
           ),
         ],
@@ -220,201 +432,103 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _ClueCard extends StatelessWidget {
-  final String sentence;
-  final VoidCallback onReveal;
-  final VoidCallback onDelete;
-  const _ClueCard({
-    required this.sentence,
-    required this.onReveal,
-    required this.onDelete,
-  });
+// ─── Clues Panel ─────────────────────────────────────────────────────────────
+
+class _CluesPanel extends StatelessWidget {
+  final List<WordPlacement> words;
+  final List<bool> found;
+  const _CluesPanel({required this.words, required this.found});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.midTeal,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
       ),
-      child: Column(
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: words.length,
+        separatorBuilder: (_, __) =>
+            const Divider(height: 1, indent: 52, color: Colors.white24),
+        itemBuilder: (ctx, i) => _ClueItem(
+          placement: words[i],
+          isFound:   found[i],
+          index:     i + 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _ClueItem extends StatelessWidget {
+  final WordPlacement placement;
+  final bool isFound;
+  final int index;
+  const _ClueItem(
+      {required this.placement, required this.isFound, required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+      child: Row(
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('أكمل ...',
-                style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
-                    fontSize: 14)),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: isFound ? AppColors.gold : AppColors.navDark,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: isFound
+                  ? const Icon(Icons.check, color: Colors.white, size: 17)
+                  : Text('$index',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold)),
+            ),
           ),
-          // Body — sentence
+          const SizedBox(width: 12),
           Expanded(
-            child: Container(
-              width: double.infinity,
-              color: AppColors.cardDark,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Center(
-                child: Text(
-                  sentence,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    height: 1.6,
-                  ),
-                ),
+            child: Text(
+              placement.clue,
+              style: TextStyle(
+                color:      isFound ? Colors.white54 : Colors.white,
+                fontSize:   14,
+                fontWeight: FontWeight.w500,
+                decoration: isFound ? TextDecoration.lineThrough : null,
+                decorationColor: Colors.white54,
               ),
             ),
           ),
-          // Footer buttons
-          Row(
-            children: [
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, color: Colors.white70, size: 18),
-                  label: const Text('إحذف حرف',
-                      style: TextStyle(color: Colors.white, fontSize: 13)),
-                ),
+          if (!isFound)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color:        AppColors.navDark,
+                borderRadius: BorderRadius.circular(8),
               ),
-              Container(width: 1, height: 36, color: Colors.white30),
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: onReveal,
-                  icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 18),
-                  label: const Text('إكشف حرف',
-                      style: TextStyle(color: Colors.white, fontSize: 13)),
-                ),
+              child: Text(
+                '${placement.word.length} أحرف',
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _AnswerBoxes extends StatelessWidget {
-  final String answer;
-  final List<String?> placed;
-  final int cursor;
-  final bool won;
-  const _AnswerBoxes({
-    required this.answer,
-    required this.placed,
-    required this.cursor,
-    required this.won,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final n = answer.length;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      // RTL: index 0 on the right (first Arabic letter)
-      textDirection: TextDirection.rtl,
-      children: List.generate(n, (i) {
-        final isActive = i == cursor && !won;
-        final letter   = placed[i];
-        return Container(
-          width: 44,
-          height: 44,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            color: won
-                ? AppColors.gold
-                : (isActive ? AppColors.gold : AppColors.cardDark),
-            borderRadius: BorderRadius.circular(8),
-            border: isActive
-                ? Border.all(color: Colors.white, width: 2)
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              letter ?? '',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class _LetterPool extends StatelessWidget {
-  final List<String> pool;
-  final List<bool> used;
-  final void Function(int) onTap;
-  const _LetterPool({required this.pool, required this.used, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final half = (pool.length / 2).ceil();
-    final row1 = pool.sublist(0, half);
-    final row2 = pool.sublist(half);
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildRow(row1, 0),
-        const SizedBox(height: 8),
-        _buildRow(row2, half),
-      ],
-    );
-  }
-
-  Widget _buildRow(List<String> letters, int offset) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(letters.length, (i) {
-        final idx    = offset + i;
-        final isUsed = used[idx];
-        return GestureDetector(
-          onTap: isUsed ? null : () => onTap(idx),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 42,
-            height: 42,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            decoration: BoxDecoration(
-              color: isUsed ? Colors.transparent : Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: isUsed
-                  ? null
-                  : [
-                      const BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 3,
-                          offset: Offset(0, 2)),
-                    ],
-            ),
-            child: Center(
-              child: Text(
-                isUsed ? '' : letters[i],
-                style: const TextStyle(
-                  color: Color(0xFF333333),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
+// ─── Win Dialog ───────────────────────────────────────────────────────────────
 
 class _WinDialog extends StatelessWidget {
-  final int stars;
   final VoidCallback onNext;
-  const _WinDialog({required this.stars, required this.onNext});
+  const _WinDialog({required this.onNext});
 
   @override
   Widget build(BuildContext context) {
@@ -423,7 +537,7 @@ class _WinDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
-          color: AppColors.cardDark,
+          color:        AppColors.cardDark,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
@@ -431,21 +545,19 @@ class _WinDialog extends StatelessWidget {
           children: [
             const Text('أحسنت!',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
+                    color:      Colors.white,
+                    fontSize:   28,
                     fontWeight: FontWeight.w900)),
             const SizedBox(height: 16),
-            // Stars
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(3, (i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(
-                  i < stars ? Icons.star : Icons.star_border,
-                  color: AppColors.gold,
-                  size: 40,
+              children: List.generate(
+                3,
+                (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.star, color: AppColors.gold, size: 40),
                 ),
-              )),
+              ),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -454,7 +566,8 @@ class _WinDialog extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.gold,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),

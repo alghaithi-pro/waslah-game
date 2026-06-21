@@ -5,7 +5,7 @@ import '../theme/colors.dart';
 import 'game_screen.dart';
 
 class PuzzlesScreen extends StatefulWidget {
-  final Group group;
+  final WordSearchGroup group;
   const PuzzlesScreen({super.key, required this.group});
 
   @override
@@ -13,11 +13,11 @@ class PuzzlesScreen extends StatefulWidget {
 }
 
 class _PuzzlesScreenState extends State<PuzzlesScreen> {
-  Group get group => widget.group;
+  WordSearchGroup get group => widget.group;
 
-  bool _isPuzzleUnlocked(int index) {
+  bool _isLevelUnlocked(int index) {
     if (index == 0) return true;
-    return Progress.isPuzzleDone(group.puzzles[index - 1].id);
+    return Progress.isLevelDone(group.levels[index - 1].id);
   }
 
   @override
@@ -36,13 +36,11 @@ class _PuzzlesScreenState extends State<PuzzlesScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top bar
               _TopBar(
                 title: group.name,
                 stars: totalStars,
                 onBack: () => Navigator.pop(context),
               ),
-              // Grid
               Expanded(
                 child: GridView.builder(
                   padding: const EdgeInsets.all(24),
@@ -51,12 +49,12 @@ class _PuzzlesScreenState extends State<PuzzlesScreen> {
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
                   ),
-                  itemCount: group.puzzles.length,
+                  itemCount: group.levels.length,
                   itemBuilder: (ctx, i) {
-                    final puzzle  = group.puzzles[i];
-                    final unlocked = _isPuzzleUnlocked(i);
-                    final done    = Progress.isPuzzleDone(puzzle.id);
-                    final pStars  = Progress.puzzleStars(puzzle.id);
+                    final level    = group.levels[i];
+                    final unlocked = _isLevelUnlocked(i);
+                    final done     = Progress.isLevelDone(level.id);
+                    final lStars   = Progress.levelStars(level.id);
 
                     return GestureDetector(
                       onTap: unlocked
@@ -64,17 +62,18 @@ class _PuzzlesScreenState extends State<PuzzlesScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => GameScreen(
-                                    puzzle: puzzle,
-                                    puzzleNumber: i + 1,
+                                    level: level,
+                                    levelNumber: i + 1,
                                   ),
                                 ),
                               ).then((_) => setState(() {}))
                           : null,
-                      child: _PuzzleCard(
+                      child: _LevelCard(
                         number: i + 1,
+                        name: level.name,
                         unlocked: unlocked,
                         done: done,
-                        stars: pStars,
+                        stars: lStars,
                       ),
                     );
                   },
@@ -135,13 +134,15 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _PuzzleCard extends StatelessWidget {
+class _LevelCard extends StatelessWidget {
   final int number;
+  final String name;
   final bool unlocked;
   final bool done;
   final int stars;
-  const _PuzzleCard({
+  const _LevelCard({
     required this.number,
+    required this.name,
     required this.unlocked,
     required this.done,
     required this.stars,
@@ -149,9 +150,9 @@ class _PuzzleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mainColor = unlocked
-        ? (done ? AppColors.gold.withOpacity(0.85) : AppColors.gold)
-        : AppColors.cardDark;
+    final mainColor = !unlocked
+        ? AppColors.cardDark
+        : (done ? AppColors.gold.withValues(alpha: 0.85) : AppColors.gold);
 
     return Container(
       decoration: BoxDecoration(
@@ -159,7 +160,7 @@ class _PuzzleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -167,22 +168,34 @@ class _PuzzleCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Main area
           Expanded(
             child: Center(
               child: unlocked
-                  ? Text(
-                      '$number',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                      ),
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$number',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          name,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     )
-                  : const Icon(Icons.lock_outline, color: Color(0xFF27B5AF), size: 32),
+                  : const Icon(Icons.lock_outline, color: Colors.white70, size: 32),
             ),
           ),
-          // Stars strip
           Container(
             height: 28,
             decoration: BoxDecoration(

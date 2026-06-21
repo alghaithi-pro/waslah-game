@@ -17,7 +17,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
     final stars = Progress.totalStars;
 
     return Scaffold(
-      backgroundColor: AppColors.bgTop,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -29,13 +28,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top bar
               _TopBar(
                 title: 'المجموعات',
                 stars: stars,
                 onBack: () => Navigator.pop(context),
               ),
-              // Groups list
               Expanded(
                 child: ListView.separated(
                   padding: EdgeInsets.zero,
@@ -69,8 +66,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
     );
   }
 
-  int _groupEarnedStars(Group g) {
-    return g.puzzles.fold(0, (sum, p) => sum + Progress.puzzleStars(p.id));
+  int _groupEarnedStars(WordSearchGroup g) {
+    return g.levels.fold(0, (sum, l) => sum + Progress.levelStars(l.id));
   }
 }
 
@@ -87,7 +84,6 @@ class _TopBar extends StatelessWidget {
       height: 52,
       child: Row(
         children: [
-          // Back button (RTL: left side = right visually)
           TextButton.icon(
             onPressed: onBack,
             icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
@@ -123,7 +119,7 @@ class _TopBar extends StatelessWidget {
 }
 
 class _GroupRow extends StatelessWidget {
-  final Group group;
+  final WordSearchGroup group;
   final bool unlocked;
   final int earnedStars;
   final VoidCallback? onTap;
@@ -140,23 +136,19 @@ class _GroupRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: 64,
-        color: unlocked
-            ? const Color(0xFF1D9E98)
-            : const Color(0xFF178581),
+        color: unlocked ? AppColors.navBar : AppColors.navDark,
         child: Row(
           children: [
-            // Left icon cell
             Container(
               width: 64,
               height: double.infinity,
               color: unlocked ? AppColors.gold : AppColors.cardDark,
               child: Icon(
                 unlocked ? Icons.play_circle_outline : Icons.lock_outline,
-                color: unlocked ? Colors.white : AppColors.midTeal,
+                color: Colors.white,
                 size: 28,
               ),
             ),
-            // Group name
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -170,7 +162,6 @@ class _GroupRow extends StatelessWidget {
                 ),
               ),
             ),
-            // Stars
             Padding(
               padding: const EdgeInsets.only(left: 16),
               child: Row(

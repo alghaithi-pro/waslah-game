@@ -89,7 +89,7 @@ class _HashWithTitle extends StatelessWidget {
     final barLen   = size * 0.85;
     final gap      = size * 0.24;
     final radius   = barThick / 2;
-    final barColor = Colors.white.withOpacity(0.85);
+    final barColor = Colors.white.withValues(alpha: 0.85);
 
     // Horizontal bar top positions (same formula as before)
     final h1Top = size / 2 - gap / 2 - barThick;
@@ -131,7 +131,7 @@ class _HashWithTitle extends StatelessWidget {
             left: 0,
             right: 0,
             height: barThick,
-            child: const Center(child: _TitlePill(text: 'كلمـات')),
+            child: const Center(child: _TitlePill(text: 'لعبة')),
           ),
           // Title pill 2 — overlaid on bar 2
           Positioned(
@@ -139,7 +139,7 @@ class _HashWithTitle extends StatelessWidget {
             left: 0,
             right: 0,
             height: barThick,
-            child: const Center(child: _TitlePill(text: 'متقاطعة')),
+            child: const Center(child: _TitlePill(text: 'وصلة')),
           ),
         ],
       ),
@@ -205,7 +205,7 @@ class _GameButton extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 36),
         height: 60,
         decoration: BoxDecoration(
-          color: const Color(0xFF27B5AF),
+          color: AppColors.navBar,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
