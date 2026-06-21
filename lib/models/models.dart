@@ -1,74 +1,123 @@
 import 'dart:math';
 
-enum Difficulty { easy, medium, hard }
+enum ClueType { text, image, logo, phrase, flag }
 
-class WordPlacement {
-  final String word;
-  final String clue;
-  final int row;
-  final int col;
-  final bool horizontal;
+enum WordDirection { horizontal, vertical }
 
-  const WordPlacement({
-    required this.word,
-    required this.clue,
-    required this.row,
-    required this.col,
-    required this.horizontal,
+class CrosswordWord {
+  final int id;
+  final String answer;
+  final ClueType clueType;
+  final String clueText;
+  final String? clueAsset;
+  final int startRow;
+  final int startCol;
+  final WordDirection direction;
+
+  const CrosswordWord({
+    required this.id,
+    required this.answer,
+    required this.clueType,
+    required this.clueText,
+    this.clueAsset,
+    required this.startRow,
+    required this.startCol,
+    required this.direction,
   });
+
+  List<(int, int)> get cells => List.generate(
+        answer.length,
+        (i) => direction == WordDirection.horizontal
+            ? (startRow, startCol + i)
+            : (startRow + i, startCol),
+      );
+
+  int get endRow => direction == WordDirection.horizontal
+      ? startRow
+      : startRow + answer.length - 1;
+
+  int get endCol => direction == WordDirection.horizontal
+      ? startCol + answer.length - 1
+      : startCol;
 }
 
-class WordSearchLevel {
+class CrosswordLevel {
   final int id;
-  final String name;
-  final Difficulty difficulty;
+  final int number;
   final int rows;
   final int cols;
-  final List<WordPlacement> words;
+  final List<CrosswordWord> words;
 
-  const WordSearchLevel({
+  const CrosswordLevel({
     required this.id,
-    required this.name,
-    required this.difficulty,
+    required this.number,
     required this.rows,
     required this.cols,
     required this.words,
   });
 
-  List<List<String>> buildGrid() {
-    final grid = List.generate(rows, (_) => List.filled(cols, ''));
-    for (final wp in words) {
-      for (int i = 0; i < wp.word.length; i++) {
-        if (wp.horizontal) {
-          grid[wp.row][wp.col + i] = wp.word[i];
-        } else {
-          grid[wp.row + i][wp.col] = wp.word[i];
-        }
-      }
-    }
-    const arabic = 'ابتثجحخدذرزسشصضطظعغفقكلمنهوي';
-    final rng = Random(id * 13 + rows * 7);
-    for (int r = 0; r < rows; r++) {
-      for (int c = 0; c < cols; c++) {
-        if (grid[r][c].isEmpty) {
-          grid[r][c] = arabic[rng.nextInt(arabic.length)];
-        }
+  /// Solution grid: key = 'row,col' → correct letter
+  Map<String, String> buildSolutionGrid() {
+    final grid = <String, String>{};
+    for (final word in words) {
+      for (int i = 0; i < word.answer.length; i++) {
+        final key = word.direction == WordDirection.horizontal
+            ? '${word.startRow},${word.startCol + i}'
+            : '${word.startRow + i},${word.startCol}';
+        grid[key] = word.answer[i];
       }
     }
     return grid;
   }
+
+  /// All active cell keys that belong to at least one word
+  Set<String> get activeCells {
+    final cells = <String>{};
+    for (final word in words) {
+      for (final cell in word.cells) {
+        cells.add('${cell.$1},${cell.$2}');
+      }
+    }
+    return cells;
+  }
+
+  /// Shuffled letters for the custom keyboard (word letters + distractors)
+  List<String> keyboardLetters({int distractorCount = 4}) {
+    final unique = <String>{};
+    for (final word in words) {
+      unique.addAll(word.answer.split(''));
+    }
+    const pool = 'ابتثجحخدذرزسشصضطظعغفقكلمنهوي';
+    final rng = Random(id * 31);
+    final result = unique.toList();
+    int added = 0;
+    int tries = 0;
+    while (added < distractorCount && tries < 200) {
+      final ch = pool[rng.nextInt(pool.length)];
+      if (!unique.contains(ch)) {
+        result.add(ch);
+        unique.add(ch);
+        added++;
+      }
+      tries++;
+    }
+    result.shuffle(rng);
+    return result;
+  }
 }
 
-class WordSearchGroup {
+class CrosswordGroup {
   final int id;
   final String name;
   final int starsRequired;
-  final List<WordSearchLevel> levels;
+  final List<CrosswordLevel> levels;
 
-  const WordSearchGroup({
+  const CrosswordGroup({
     required this.id,
     required this.name,
     required this.starsRequired,
     required this.levels,
   });
+
+  int get totalStarsPossible => levels.length * 3;
 }
